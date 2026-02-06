@@ -31,6 +31,8 @@ Examples:
   gotp qr "My Account" --terminal
   gotp qr "My Account" --terminal --compact`,
 		Args: cobra.MaximumNArgs(1),
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			vaultPath := config.GetVaultPath()
 
@@ -38,7 +40,8 @@ Examples:
 			if cmd.Flags().Changed("parse") {
 				parseFile, _ := cmd.Flags().GetString("parse")
 				if parseFile == "" {
-					return fmt.Errorf("parse file path required")
+					fmt.Fprintf(ui.Out, "%sError: Parse file path required%s\n", ui.DangerBright, ui.Reset)
+					return nil
 				}
 
 				fmt.Fprintf(ui.Out, "%sParsing QR code: %s%s\n", ui.InfoBright, parseFile, ui.Reset)
@@ -46,13 +49,13 @@ Examples:
 				uri, err := qr.ParseImageFile(parseFile)
 				if err != nil {
 					fmt.Fprintf(ui.Out, "%s✗ Failed to parse QR code: %v%s\n", ui.DangerBright, err, ui.Reset)
-					return err
+					return nil
 				}
 
 				// Validate it's an otpauth URI
 				if err := qr.ValidateOTPAuthURI(uri); err != nil {
 					fmt.Fprintf(ui.Out, "%s✗ Invalid URI format: %v%s\n", ui.DangerBright, err, ui.Reset)
-					return err
+					return nil
 				}
 
 				fmt.Fprintf(ui.Out, "%s✓ Successfully parsed QR code%s\n", ui.SuccessBright, ui.Reset)
@@ -70,8 +73,10 @@ Examples:
 
 			// Generate mode requires an account name
 			if len(args) == 0 {
-				fmt.Fprintf(ui.Out, "%s✗ Account name required for QR generation%s\n", ui.DangerBright, ui.Reset)
-				return fmt.Errorf("account name required for QR generation")
+				fmt.Fprintf(ui.Out, "%sError: Account name required for QR generation%s\n", ui.DangerBright, ui.Reset)
+				fmt.Fprintf(ui.Out, "%sUsage: %s%sgotp %sqr %s<account> %s[flags]%s\n", 
+					ui.TextMuted, ui.Reset, ui.SuccessBright, ui.WarningBright, ui.WarningBright, ui.InfoBright, ui.Reset)
+				return nil
 			}
 
 			accountName := args[0]
@@ -82,7 +87,7 @@ Examples:
 			v, _, err := vault.LoadVaultInteractive(vaultPath, ui.PromptPassword)
 			if err != nil {
 				fmt.Fprintf(ui.Out, "%s✗ Failed to load vault: %v%s\n", ui.DangerBright, err, ui.Reset)
-				return err
+				return nil
 			}
 
 			// Find account
@@ -96,7 +101,7 @@ Examples:
 
 			if targetAccount == nil {
 				fmt.Fprintf(ui.Out, "%s✗ Account not found: %s%s\n", ui.DangerBright, accountName, ui.Reset)
-				return fmt.Errorf("account not found: %s", accountName)
+				return nil
 			}
 
 			// Generate URI
@@ -109,7 +114,7 @@ Examples:
 
 				if err := qr.GenerateQRCodeToTerminal(uri); err != nil {
 					fmt.Fprintf(ui.Out, "%s✗ Failed to generate terminal QR code: %v%s\n", ui.DangerBright, err, ui.Reset)
-					return fmt.Errorf("failed to generate terminal QR code: %w", err)
+					return nil
 				}
 				return nil
 			}
@@ -123,7 +128,7 @@ Examples:
 
 			if err := qr.GenerateQRCodeToFile(uri, output, size); err != nil {
 				fmt.Fprintf(ui.Out, "%s✗ Failed to generate QR code: %v%s\n", ui.DangerBright, err, ui.Reset)
-				return fmt.Errorf("failed to generate QR code: %w", err)
+				return nil
 			}
 
 			fmt.Fprintf(ui.Out, "%s✓ QR code generated: %s%s\n", ui.SuccessBright, output, ui.Reset)

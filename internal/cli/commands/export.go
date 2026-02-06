@@ -19,12 +19,22 @@ func NewExportCmd() *cobra.Command {
 		Use:   "export",
 		Short: "Export accounts for backup",
 		Long:  `Export your stored accounts for backup or migration. Supports JSON, otpauth:// URIs, and password-protected encrypted formats.`,
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			vaultPath := config.GetVaultPath()
 
+			// Check if vault exists first
+			if _, err := os.Stat(vaultPath); os.IsNotExist(err) {
+				fmt.Fprintf(ui.Out, "%sError: Vault file not found at %s%s\n", ui.DangerBright, vaultPath, ui.Reset)
+				fmt.Fprintf(ui.Out, "%sTip: Run '%s%sgotp %sinit%s' to create a new secure vault.%s\n", ui.TextMuted, ui.Reset, ui.SuccessBright, ui.WarningBright, ui.TextMuted, ui.Reset)
+				return nil
+			}
+
 			v, _, err := vault.LoadVaultInteractive(vaultPath, ui.PromptPassword)
 			if err != nil {
-				return err
+				fmt.Fprintf(ui.Out, "%sError: %v%s\n", ui.DangerBright, err, ui.Reset)
+				return nil
 			}
 
 			var output []byte
@@ -36,7 +46,8 @@ func NewExportCmd() *cobra.Command {
 				}
 				output, err = json.MarshalIndent(v.Accounts, "", "  ")
 				if err != nil {
-					return err
+					fmt.Fprintf(ui.Out, "%sError: Failed to marshal JSON: %v%s\n", ui.DangerBright, err, ui.Reset)
+					return nil
 				}
 			case "uri":
 				if !ui.PromptConfirm("⚠ WARNING: This will export secrets in PLAIN TEXT. Continue?", false) {
@@ -55,7 +66,8 @@ func NewExportCmd() *cobra.Command {
 				}
 				confirmPass, _ := ui.PromptPassword("Confirm export password: ")
 				if !crypto.SecureCompare(exportPass, confirmPass) {
-					return fmt.Errorf("passwords do not match")
+					fmt.Fprintf(ui.Out, "%sError: Passwords do not match%s\n", ui.DangerBright, ui.Reset)
+					return nil
 				}
 
 				salt, _ := crypto.GenerateSalt(16)
@@ -64,7 +76,8 @@ func NewExportCmd() *cobra.Command {
 
 				ciphertext, err := exportVault.Marshal(exportPass)
 				if err != nil {
-					return fmt.Errorf("encryption failed: %v", err)
+					fmt.Fprintf(ui.Out, "%sError: Encryption failed: %v%s\n", ui.DangerBright, err, ui.Reset)
+					return nil
 				}
 
 				metadata := vault.VaultMetadata{
@@ -75,13 +88,16 @@ func NewExportCmd() *cobra.Command {
 				output, _ = json.Marshal(metadata)
 
 			default:
-				return fmt.Errorf("unsupported format: %s. Use 'json', 'uri', or 'encrypted'", format)
+				fmt.Fprintf(ui.Out, "%sError: Unsupported format: %s%s\n", ui.DangerBright, format, ui.Reset)
+				fmt.Fprintf(ui.Out, "%sTip: Use 'json', 'uri', or 'encrypted'.%s\n", ui.TextMuted, ui.Reset)
+				return nil
 			}
 
 			if outputPath != "" {
 				err = os.WriteFile(outputPath, output, 0600)
 				if err != nil {
-					return err
+					fmt.Fprintf(ui.Out, "%sError: Failed to write file: %v%s\n", ui.DangerBright, err, ui.Reset)
+					return nil
 				}
 				fmt.Fprintf(ui.Out, "%s✓ Exported %d accounts to %s%s\n", ui.SuccessBright, len(v.Accounts), outputPath, ui.Reset)
 			} else {

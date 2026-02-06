@@ -55,12 +55,12 @@ func setupTestCLI(vaultPath string, input string) *cobra.Command {
 		return nil, io.EOF
 	}
 	ui.ResetScanner()
-	ui.ResetScanner()
 
 	// Clear session for each test to ensure predictable prompts
 	_ = vault.ClearSession()
 
 	root := &cobra.Command{Use: "gotp"}
+	root.PersistentFlags().BoolP("json", "j", false, "Output in JSON format")
 	root.AddCommand(NewInitCmd())
 	root.AddCommand(NewAddCmd())
 	root.AddCommand(NewListCmd())
@@ -130,7 +130,10 @@ func TestCLIIntegration(t *testing.T) {
 	// 11. Test Get JSON
 	t.Log("Testing Get JSON")
 	root = setupTestCLI(vaultPath, "password\n")
-	out, _ = executeCommand(root, "get", "EditedInteractive", "--json")
+	out, err = executeCommand(root, "get", "EditedInteractive", "--json")
+	if err != nil {
+		t.Fatalf("Get JSON failed: %v", err)
+	}
 	if !strings.Contains(out, "code") {
 		t.Errorf("Get JSON missing code. Got: %q", out)
 	}
@@ -138,8 +141,9 @@ func TestCLIIntegration(t *testing.T) {
 	// 12. Test Password Mismatch
 	t.Log("Testing Password Mismatch")
 	root = setupTestCLI(vaultPath, "password\nwrong\nwrong2\n")
-	_, err = executeCommand(root, "passwd")
-	if err == nil {
-		t.Error("Expected error for password mismatch")
+	out, err = executeCommand(root, "passwd")
+	// In the new UI, mismatches print an Error and return nil
+	if !strings.Contains(out, "Error") && err == nil {
+		t.Error("Expected error output for password mismatch")
 	}
 }

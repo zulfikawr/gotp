@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -18,13 +19,23 @@ func NewRemoveCmd() *cobra.Command {
 		Short: "Remove an account from the vault",
 		Long:  `Permanently remove a TOTP account from your secure vault. Requires a confirmation unless the --force flag is used.`,
 		Args:  cobra.ExactArgs(1),
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 			vaultPath := config.GetVaultPath()
 
+			// Check if vault exists first
+			if _, err := os.Stat(vaultPath); os.IsNotExist(err) {
+				fmt.Fprintf(ui.Out, "%sError: Vault file not found at %s%s\n", ui.DangerBright, vaultPath, ui.Reset)
+				fmt.Fprintf(ui.Out, "%sTip: Run '%s%sgotp %sinit%s' to create a new secure vault.%s\n", ui.TextMuted, ui.Reset, ui.SuccessBright, ui.WarningBright, ui.TextMuted, ui.Reset)
+				return nil
+			}
+
 			v, key, err := vault.LoadVaultInteractive(vaultPath, ui.PromptPassword)
 			if err != nil {
-				return err
+				fmt.Fprintf(ui.Out, "%sError: %v%s\n", ui.DangerBright, err, ui.Reset)
+				return nil
 			}
 
 			index := -1
@@ -36,7 +47,8 @@ func NewRemoveCmd() *cobra.Command {
 			}
 
 			if index == -1 {
-				return fmt.Errorf("account %q not found", name)
+				fmt.Fprintf(ui.Out, "%sError: Account %q not found%s\n", ui.DangerBright, name, ui.Reset)
+				return nil
 			}
 
 			if !force {
@@ -54,7 +66,8 @@ func NewRemoveCmd() *cobra.Command {
 			}
 
 			if err := vault.SaveVaultWithKey(vaultPath, v, key); err != nil {
-				return err
+				fmt.Fprintf(ui.Out, "%sError: Failed to save vault: %v%s\n", ui.DangerBright, err, ui.Reset)
+				return nil
 			}
 
 			fmt.Fprintf(ui.Out, "%s✓ Removed account: %s%s\n", ui.SuccessBright, name, ui.Reset)

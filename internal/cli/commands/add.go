@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/google/uuid"
@@ -22,12 +23,22 @@ func NewAddCmd() *cobra.Command {
 		Use:   "add [name]",
 		Short: "Add a new TOTP account",
 		Long:  `Add a new TOTP account to your secure vault. You can either provide the details manually via flags or interactive mode, or use an otpauth:// URI.`,
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			vaultPath := config.GetVaultPath()
 
+			// Check if vault exists first
+			if _, err := os.Stat(vaultPath); os.IsNotExist(err) {
+				fmt.Fprintf(ui.Out, "%sError: Vault file not found at %s%s\n", ui.DangerBright, vaultPath, ui.Reset)
+				fmt.Fprintf(ui.Out, "%sTip: Run '%s%sgotp %sinit%s' to create a new secure vault.%s\n", ui.TextMuted, ui.Reset, ui.SuccessBright, ui.WarningBright, ui.TextMuted, ui.Reset)
+				return nil // Exit gracefully
+			}
+
 			v, key, err := vault.LoadVaultInteractive(vaultPath, ui.PromptPassword)
 			if err != nil {
-				return err
+				fmt.Fprintf(ui.Out, "%sError: %v%s\n", ui.DangerBright, err, ui.Reset)
+				return nil
 			}
 
 			var acc *vault.Account

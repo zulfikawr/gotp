@@ -3,6 +3,7 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -24,13 +25,26 @@ func NewListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List all stored accounts",
 		Long:  `Display all TOTP accounts stored in your secure vault. Supports filtering by tags and various sorting options.`,
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			vaultPath := config.GetVaultPath()
 			isJSON, _ := cmd.Flags().GetBool("json")
 
+			// Check if vault exists first
+			if _, err := os.Stat(vaultPath); os.IsNotExist(err) {
+				if isJSON {
+					return fmt.Errorf("vault file not found")
+				}
+				fmt.Fprintf(ui.Out, "%sError: Vault file not found at %s%s\n", ui.DangerBright, vaultPath, ui.Reset)
+				fmt.Fprintf(ui.Out, "%sTip: Run '%s%sgotp %sinit%s' to create a new secure vault.%s\n", ui.TextMuted, ui.Reset, ui.SuccessBright, ui.WarningBright, ui.TextMuted, ui.Reset)
+				return nil
+			}
+
 			v, _, err := vault.LoadVaultInteractive(vaultPath, ui.PromptPassword)
 			if err != nil {
-				return err
+				fmt.Fprintf(ui.Out, "%sError: %v%s\n", ui.DangerBright, err, ui.Reset)
+				return nil
 			}
 
 			accounts := v.Accounts
@@ -66,7 +80,7 @@ func NewListCmd() *cobra.Command {
 			}
 
 			if len(accounts) == 0 {
-				fmt.Fprintln(ui.Out, "No accounts found.")
+				fmt.Fprintln(ui.Out, ui.Dimmed("No accounts found."))
 				return nil
 			}
 

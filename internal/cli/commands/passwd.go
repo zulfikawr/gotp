@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/zulfikawr/gotp/internal/cli/ui"
@@ -15,12 +16,22 @@ func NewPasswdCmd() *cobra.Command {
 		Use:   "passwd",
 		Short: "Change master password",
 		Long:  `Securely update the master password for your secure vault. This will re-encrypt all stored accounts using the new password.`,
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			vaultPath := config.GetVaultPath()
 
+			// Check if vault exists first
+			if _, err := os.Stat(vaultPath); os.IsNotExist(err) {
+				fmt.Fprintf(ui.Out, "%sError: Vault file not found at %s%s\n", ui.DangerBright, vaultPath, ui.Reset)
+				fmt.Fprintf(ui.Out, "%sTip: Run '%s%sgotp %sinit%s' to create a new secure vault.%s\n", ui.TextMuted, ui.Reset, ui.SuccessBright, ui.WarningBright, ui.TextMuted, ui.Reset)
+				return nil
+			}
+
 			v, _, err := vault.LoadVaultInteractive(vaultPath, ui.PromptPassword)
 			if err != nil {
-				return err
+				fmt.Fprintf(ui.Out, "%sError: %v%s\n", ui.DangerBright, err, ui.Reset)
+				return nil
 			}
 
 			newPassword, err := ui.PromptPassword("Enter new master password: ")
@@ -33,7 +44,8 @@ func NewPasswdCmd() *cobra.Command {
 			}
 
 			if !crypto.SecureCompare(newPassword, confirm) {
-				return fmt.Errorf("passwords do not match")
+				fmt.Fprintf(ui.Out, "%sError: Passwords do not match%s\n", ui.DangerBright, ui.Reset)
+				return nil
 			}
 
 			if err := vault.CreateBackup(vaultPath, 3); err != nil {
@@ -41,7 +53,8 @@ func NewPasswdCmd() *cobra.Command {
 			}
 
 			if err := vault.SaveVault(vaultPath, v, newPassword); err != nil {
-				return err
+				fmt.Fprintf(ui.Out, "%sError: Failed to save vault: %v%s\n", ui.DangerBright, err, ui.Reset)
+				return nil
 			}
 
 			// Clear session on password change

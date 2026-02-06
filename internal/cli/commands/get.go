@@ -27,14 +27,24 @@ func NewGetCmd() *cobra.Command {
 		Short: "Get TOTP code for an account",
 		Long:  `Generate and display the current Time-based One-Time Password (TOTP) code for a stored account. Includes a live-updating watch mode and clipboard integration.`,
 		Args:  cobra.ExactArgs(1),
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 			vaultPath := config.GetVaultPath()
 			isJSON, _ := cmd.Flags().GetBool("json")
 
+			// Check if vault exists first
+			if _, err := os.Stat(vaultPath); os.IsNotExist(err) {
+				fmt.Fprintf(ui.Out, "%sError: Vault file not found at %s%s\n", ui.DangerBright, vaultPath, ui.Reset)
+				fmt.Fprintf(ui.Out, "%sTip: Run '%s%sgotp %sinit%s' to create a new secure vault.%s\n", ui.TextMuted, ui.Reset, ui.SuccessBright, ui.WarningBright, ui.TextMuted, ui.Reset)
+				return nil
+			}
+
 			v, _, err := vault.LoadVaultInteractive(vaultPath, ui.PromptPassword)
 			if err != nil {
-				return err
+				fmt.Fprintf(ui.Out, "%sError: %v%s\n", ui.DangerBright, err, ui.Reset)
+				return nil
 			}
 
 			var target *vault.Account
@@ -46,17 +56,20 @@ func NewGetCmd() *cobra.Command {
 			}
 
 			if target == nil {
-				return fmt.Errorf("account %q not found", name)
+				fmt.Fprintf(ui.Out, "%sError: Account %q not found%s\n", ui.DangerBright, name, ui.Reset)
+				return nil
 			}
 
 			secretBytes, err := base32.Decode(string(target.Secret))
 			if err != nil {
-				return fmt.Errorf("failed to decode secret: %v", err)
+				fmt.Fprintf(ui.Out, "%sError: Failed to decode secret: %v%s\n", ui.DangerBright, err, ui.Reset)
+				return nil
 			}
 
 			if watch {
 				if isJSON {
-					return fmt.Errorf("watch mode is not compatible with JSON output")
+					fmt.Fprintf(ui.Out, "%sError: Watch mode is not compatible with JSON output%s\n", ui.DangerBright, ui.Reset)
+					return nil
 				}
 
 				// Set up signal handling to restore cursor on Ctrl+C
@@ -120,11 +133,12 @@ func NewGetCmd() *cobra.Command {
 				Algorithm: target.Algorithm,
 			})
 			if err != nil {
-				return err
+				fmt.Fprintf(ui.Out, "%sError: Failed to generate code: %v%s\n", ui.DangerBright, err, ui.Reset)
+				return nil
 			}
 
 			if isJSON {
-				res := map[string]string{
+				res := map[string]interface{}{
 					"account": target.Name,
 					"code":    code,
 				}
@@ -137,9 +151,9 @@ func NewGetCmd() *cobra.Command {
 
 			if copyToClipboard {
 				if err := clipboard.WriteWithTimeout(code, time.Duration(timeout)*time.Second); err != nil {
-					fmt.Fprintf(ui.Out, "Warning: failed to copy to clipboard: %v\n", err)
+					fmt.Fprintf(ui.Out, "%sWarning: failed to copy to clipboard: %v%s\n", ui.WarningBright, err, ui.Reset)
 				} else if !isJSON {
-					fmt.Fprintf(ui.Out, "✓ Code copied to clipboard (clears in %ds)\n", timeout)
+					fmt.Fprintf(ui.Out, "%s✓ Code copied to clipboard (clears in %ds)%s\n", ui.SuccessBright, timeout, ui.Reset)
 				}
 			}
 			return nil
