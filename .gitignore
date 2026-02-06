@@ -1,0 +1,35 @@
+# Binaries
+/gotp
+bin/
+
+# Testing
+*.out
+coverage.txt
+*.tmp
+test_vault.enc
+test_export.json
+
+# Vault files (Sensitive)
+*.enc
+*.bak
+
+# OS specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE specific
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# env
+.env
+
+# QR Images
+qr.jpgaudit_report.md

@@ -11,10 +11,10 @@ func TestTOTP_RFC6238(t *testing.T) {
 	seed512 := []byte("1234567890123456789012345678901234567890123456789012345678901234")
 
 	testCases := []struct {
-		time     int64
-		sha1     string
-		sha256   string
-		sha512   string
+		time   int64
+		sha1   string
+		sha256 string
+		sha512 string
 	}{
 		{59, "94287082", "46119246", "90693936"},
 		{1111111109, "07081804", "68084774", "25091201"},
@@ -98,22 +98,74 @@ func TestTOTP_Validation(t *testing.T) {
 	}
 }
 
-func TestRemainingSeconds(t *testing.T) {
-	ts := time.Unix(30, 0) // Exactly at period start
-	rem := RemainingSeconds(ts, 30)
-	if rem != 30 {
-		t.Errorf("Expected 30s remaining at period start, got %d", rem)
+func TestNextExpiration(t *testing.T) {
+	ts := time.Unix(30, 0)
+	next := NextExpiration(ts, 30)
+	if next.Unix() != 60 {
+		t.Errorf("Expected next expiration at 60, got %d", next.Unix())
+	}
+}
+
+func TestHOTP_ErrorCases(t *testing.T) {
+	_, err := GenerateHOTP([]byte("secret"), 1, 5, SHA1)
+	if err == nil {
+		t.Error("Expected error for digits < 6")
+	}
+	_, err = GenerateHOTP([]byte("secret"), 1, 9, SHA1)
+	if err == nil {
+		t.Error("Expected error for digits > 8")
+	}
+}
+
+func TestHMAC_KeyPadding(t *testing.T) {
+	// Test key longer than block size (64 for SHA1)
+	longKey := make([]byte, 100)
+	for i := range longKey {
+		longKey[i] = byte(i)
+	}
+	res1 := HMAC(longKey, []byte("msg"), SHA1)
+	if len(res1) != 20 {
+		t.Error("HMAC-SHA1 should return 20 bytes")
 	}
 
-	ts = time.Unix(45, 0) // Middle of period
-	rem = RemainingSeconds(ts, 30)
-	if rem != 15 {
-		t.Errorf("Expected 15s remaining at middle of period, got %d", rem)
+	// Test key shorter than block size
+	shortKey := []byte("short")
+	res2 := HMAC(shortKey, []byte("msg"), SHA1)
+	if len(res2) != 20 {
+		t.Error("HMAC-SHA1 should return 20 bytes")
 	}
 
-	ts = time.Unix(59, 0) // End of period
-	rem = RemainingSeconds(ts, 30)
-	if rem != 1 {
-		t.Errorf("Expected 1s remaining at end of period, got %d", rem)
+	// Test SHA512 (block size 128)
+	res3 := HMAC(longKey, []byte("msg"), SHA512)
+	if len(res3) != 64 {
+		t.Error("HMAC-SHA512 should return 64 bytes")
+	}
+}
+
+func TestTOTP_DefaultValues(t *testing.T) {
+	// Test that default values are applied
+	code, err := GenerateTOTP(TOTPParams{
+		Secret:    []byte("JBSWY3DPEHPK3PXP"),
+		Timestamp: time.Unix(1234567890, 0),
+	})
+	if err != nil {
+		t.Fatalf("GenerateTOTP failed: %v", err)
+	}
+	if len(code) != 6 {
+		t.Errorf("Expected 6 digits, got %d", len(code))
+	}
+}
+
+func TestTOTP_ValidationWindow(t *testing.T) {
+	params := TOTPParams{
+		Secret:    []byte("JBSWY3DPEHPK3PXP"),
+		Timestamp: time.Unix(1234567890, 0),
+	}
+	code, _ := GenerateTOTP(params)
+
+	// Test with window = 0
+	valid, _ := ValidateTOTP(code, params, 0)
+	if !valid {
+		t.Error("Expected code to be valid with window 0")
 	}
 }

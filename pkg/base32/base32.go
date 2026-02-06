@@ -25,7 +25,7 @@ func Encode(data []byte) string {
 		// Shift the buffer and add 8 new bits.
 		buffer = (buffer << 8) | uint64(b)
 		bitsLeft += 8
-		
+
 		// Extract 5-bit chunks from the buffer.
 		for bitsLeft >= 5 {
 			bitsLeft -= 5
@@ -65,7 +65,7 @@ func Decode(s string) ([]byte, error) {
 	for i := 0; i < len(s); i++ {
 		char := s[i]
 		var val int
-		
+
 		// Map the character to its 5-bit value.
 		if char >= 'A' && char <= 'Z' {
 			val = int(char - 'A')

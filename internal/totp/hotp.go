@@ -26,10 +26,10 @@ func GenerateHOTP(secret []byte, counter uint64, digits int, algo HashAlgorithm)
 	// 2. Dynamic Truncation (DT)
 	// Extract the low-order 4 bits of the last byte of HS to use as an offset.
 	offset := hs[len(hs)-1] & 0x0f
-	
+
 	// Extract a 4-byte sequence starting at HS[offset].
 	p := hs[offset : offset+4]
-	
+
 	// Convert p to a 31-bit integer by ignoring the most significant bit (0x7fffffff).
 	binaryValue := uint32(binary.BigEndian.Uint32(p) & 0x7fffffff)
 

@@ -16,7 +16,7 @@ type HashAlgorithm string
 
 const (
 	// SHA1 is the default hash algorithm used by most TOTP implementations (RFC 4226).
-	SHA1   HashAlgorithm = "SHA1"
+	SHA1 HashAlgorithm = "SHA1"
 	// SHA256 provides enhanced security over SHA1 (RFC 6238).
 	SHA256 HashAlgorithm = "SHA256"
 	// SHA512 provides maximum security for TOTP generation (RFC 6238).
